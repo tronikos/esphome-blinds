@@ -103,6 +103,4 @@ switch:
           pos: 0.0
       - script.wait: blinds_cover_set_position
       - switch.turn_off: blinds_reset
-  - platform: restart
-    name: Restart
-    id: blinds_restart
+
