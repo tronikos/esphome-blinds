@@ -1,0 +1,108 @@
+substitutions:
+  stepper_dir_pin_inverted: 'false'
+  stepper_dir_pin: D6
+  stepper_step_pin: D7
+  stepper_enable_pin: D5
+  stepper_max_speed: '250'
+  stepper_endstop: '650'
+
+esphome:
+  on_boot:
+    - priority: -200.0
+      then:
+        # Stepper starts out with a target and current position of 0 on boot. Restore state.
+        - stepper.report_position:
+            id: stepper_motor
+            position: !lambda return int($stepper_endstop * id(blinds_cover).position);
+        - stepper.set_target:
+            id: stepper_motor
+            target: !lambda return int($stepper_endstop * id(blinds_cover).position);
+
+stepper:
+  - platform: a4988
+    id: stepper_motor
+    step_pin: $stepper_step_pin
+    dir_pin: 
+      number: $stepper_dir_pin
+      inverted: $stepper_dir_pin_inverted
+    sleep_pin: 
+      number: $stepper_enable_pin
+      inverted: true  # using enable pin
+    max_speed: $stepper_max_speed
+
+cover:
+  - platform: template
+    name: ""
+    id: blinds_cover
+    open_action:
+      then:
+        - logger.log: "Opening"
+        - script.execute:
+            id: blinds_cover_set_position
+            pos: 1.0
+        - script.wait: blinds_cover_set_position
+    close_action:
+      then:
+        - logger.log: "Closing"
+        - script.execute:
+            id: blinds_cover_set_position
+            pos: 0.0
+        - script.wait: blinds_cover_set_position
+    position_action:
+      then:
+        - logger.log: "Positioning"
+        - script.execute:
+            id: blinds_cover_set_position
+            pos: !lambda 'return pos;'
+        - script.wait: blinds_cover_set_position
+    stop_action:
+      then:
+        - logger.log: "Stopping"
+        - script.execute:
+            id: blinds_cover_set_position
+            pos: !lambda 'return float(id(stepper_motor).current_position) / $stepper_endstop;'
+        - script.wait: blinds_cover_set_position
+    has_position: true
+    device_class: blind
+
+script:
+  - id: blinds_cover_set_position
+    parameters:
+      pos: float
+    mode: restart
+    then:
+      - stepper.set_target:
+          id: stepper_motor
+          target: !lambda return int($stepper_endstop * pos);
+      - while:
+          condition:
+            lambda: 'return id(stepper_motor).current_position != id(stepper_motor).target_position;'
+          then:
+            - cover.template.publish:
+                id: blinds_cover
+                position: !lambda 'return float(id(stepper_motor).current_position) / $stepper_endstop;' 
+                current_operation: !lambda 'return id(stepper_motor).current_position < id(stepper_motor).target_position ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;'
+            - delay: 100 ms
+      - cover.template.publish:
+          id: blinds_cover
+          state: !lambda 'return pos;'
+          current_operation: IDLE
+
+switch:
+  - platform: template
+    name: Reset
+    id: blinds_reset
+    entity_category: "config"
+    turn_on_action:
+      - script.execute:
+          id: blinds_cover_set_position
+          pos: 2.0
+      - script.wait: blinds_cover_set_position
+      - script.execute:
+          id: blinds_cover_set_position
+          pos: 0.0
+      - script.wait: blinds_cover_set_position
+      - switch.turn_off: blinds_reset
+  - platform: restart
+    name: Restart
+    id: blinds_restart
