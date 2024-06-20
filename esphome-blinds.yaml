@@ -32,7 +32,7 @@ stepper:
 
 cover:
   - platform: template
-    name: ""
+    name: None
     id: blinds_cover
     open_action:
       then:
