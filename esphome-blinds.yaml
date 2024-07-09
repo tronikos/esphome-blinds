@@ -88,12 +88,12 @@ script:
           state: !lambda 'return pos;'
           current_operation: IDLE
 
-switch:
+button:
   - platform: template
-    name: Reset
+    name: Reset position
     id: blinds_reset
     entity_category: "config"
-    turn_on_action:
+    on_press:
       - script.execute:
           id: blinds_cover_set_position
           pos: 2.0
@@ -102,5 +102,3 @@ switch:
           id: blinds_cover_set_position
           pos: 0.0
       - script.wait: blinds_cover_set_position
-      - switch.turn_off: blinds_reset
-
