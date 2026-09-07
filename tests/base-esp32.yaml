@@ -1,0 +1,13 @@
+---
+# ESP32 counterpart to base.yaml.
+esphome:
+  name: test-blinds-esp32
+  friendly_name: Test Blinds ESP32
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+wifi:
+  ssid: "test-ssid"
+  password: "test-password"

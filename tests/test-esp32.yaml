@@ -1,0 +1,13 @@
+---
+# ESP32 pin set. Deliberately avoids strapping pins: GPIO12 (MTDI) in
+# particular selects 1.8V flash when held high at boot, which stops most ESP32
+# modules from booting at all.
+substitutions:
+  stepper_dir_pin_inverted: 'true'
+  stepper_dir_pin: GPIO25
+  stepper_step_pin: GPIO26
+  stepper_enable_pin: GPIO27
+
+packages:
+  base: !include base-esp32.yaml
+  blinds: !include ../esphome-blinds.yaml

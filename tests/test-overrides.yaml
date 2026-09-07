@@ -1,0 +1,15 @@
+---
+# Every substitution overridden, including the ramp opt-out.
+substitutions:
+  stepper_dir_pin_inverted: 'true'
+  stepper_dir_pin: D3
+  stepper_step_pin: D2
+  stepper_enable_pin: D1
+  stepper_max_speed: '400'
+  stepper_endstop: '900'
+  stepper_acceleration: inf
+  stepper_deceleration: inf
+
+packages:
+  base: !include base.yaml
+  blinds: !include ../esphome-blinds.yaml

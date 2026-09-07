@@ -1,0 +1,5 @@
+---
+# The package with every substitution left at its default.
+packages:
+  base: !include base.yaml
+  blinds: !include ../esphome-blinds.yaml

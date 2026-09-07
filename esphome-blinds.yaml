@@ -1,3 +1,4 @@
+---
 substitutions:
   stepper_dir_pin_inverted: 'false'
   stepper_dir_pin: D6
@@ -5,12 +6,25 @@ substitutions:
   stepper_enable_pin: D5
   stepper_max_speed: '250'
   stepper_endstop: '650'
+  # Ramping the stepper avoids the missed steps that an instant start/stop can
+  # cause. Missed steps are invisible to an open-loop driver, so they silently
+  # desync the reported position from the real one. Set to 'inf' for the old
+  # instant behavior.
+  stepper_acceleration: '2000'
+  stepper_deceleration: '2000'
 
 esphome:
+  min_version: "2025.5.0"
+  project:
+    name: "tronikos.esphome-blinds"
+    version: 1.0.0
   on_boot:
     - priority: -200.0
       then:
-        # Stepper starts out with a target and current position of 0 on boot. Restore state.
+        # The stepper starts out with a target and current position of 0 on
+        # boot, so seed it from the cover's restored position. This relies on
+        # the template cover's default restore_mode: RESTORE, which in turn
+        # needs `restore_from_flash: true` on esp8266.
         - stepper.report_position:
             id: stepper_motor
             position: !lambda return int($stepper_endstop * id(blinds_cover).position);
@@ -18,17 +32,25 @@ esphome:
             id: stepper_motor
             target: !lambda return int($stepper_endstop * id(blinds_cover).position);
 
+# The cover publishes its position ~10x/s while moving, and every publish saves
+# the restore state. Batch those into one flash write per interval rather than
+# one per minute of travel.
+preferences:
+  flash_write_interval: "60min"
+
 stepper:
   - platform: a4988
     id: stepper_motor
     step_pin: $stepper_step_pin
-    dir_pin: 
+    dir_pin:
       number: $stepper_dir_pin
       inverted: $stepper_dir_pin_inverted
-    sleep_pin: 
+    sleep_pin:
       number: $stepper_enable_pin
       inverted: true  # using enable pin
     max_speed: $stepper_max_speed
+    acceleration: $stepper_acceleration
+    deceleration: $stepper_deceleration
 
 cover:
   - platform: template
@@ -80,12 +102,18 @@ script:
           then:
             - cover.template.publish:
                 id: blinds_cover
-                position: !lambda 'return float(id(stepper_motor).current_position) / $stepper_endstop;' 
-                current_operation: !lambda 'return id(stepper_motor).current_position < id(stepper_motor).target_position ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;'
-            - delay: 100 ms
+                position: !lambda |-
+                  return clamp(float(id(stepper_motor).current_position) / $stepper_endstop, 0.0f, 1.0f);
+                current_operation: !lambda |-
+                  return id(stepper_motor).current_position < id(stepper_motor).target_position
+                      ? COVER_OPERATION_OPENING
+                      : COVER_OPERATION_CLOSING;
+            - delay: 100ms
       - cover.template.publish:
           id: blinds_cover
-          state: !lambda 'return pos;'
+          # The reset button deliberately overshoots past 1.0, so clamp before
+          # publishing rather than relying on the cover to do it.
+          state: !lambda 'return clamp(pos, 0.0f, 1.0f);'
           current_operation: IDLE
 
 button:
@@ -94,6 +122,8 @@ button:
     id: blinds_reset
     entity_category: "config"
     on_press:
+      # Deliberately drive past the endstop to re-home against the physical
+      # stop, then return to fully closed.
       - script.execute:
           id: blinds_cover_set_position
           pos: 2.0
