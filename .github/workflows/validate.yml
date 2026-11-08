@@ -72,7 +72,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - id: setup-python
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -80,11 +81,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
+            ~/.cache/esphome
             ~/.platformio
             ~/.espressif
             tests/.esphome
-          key: platformio-${{ hashFiles('*.yaml', 'tests/*.yaml') }}
-          restore-keys: platformio-
+          key: platformio-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('*.yaml', 'tests/*.yaml') }}
+          restore-keys: platformio-${{ steps.setup-python.outputs.python-version }}-
 
       - name: Install ESPHome (stable)
         if: github.event_name != 'schedule'

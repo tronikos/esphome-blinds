@@ -27,10 +27,10 @@ esphome:
         # needs `restore_from_flash: true` on esp8266.
         - stepper.report_position:
             id: stepper_motor
-            position: !lambda return int($stepper_endstop * id(blinds_cover).position);
+            position: !lambda return lroundf($stepper_endstop * id(blinds_cover).position);
         - stepper.set_target:
             id: stepper_motor
-            target: !lambda return int($stepper_endstop * id(blinds_cover).position);
+            target: !lambda return lroundf($stepper_endstop * id(blinds_cover).position);
 
 # The cover publishes its position ~10x/s while moving, and every publish saves
 # the restore state. Batch those into one flash write per interval rather than
@@ -59,6 +59,7 @@ cover:
     open_action:
       then:
         - logger.log: "Opening"
+        - script.stop: blinds_reset_script
         - script.execute:
             id: blinds_cover_set_position
             pos: 1.0
@@ -66,6 +67,7 @@ cover:
     close_action:
       then:
         - logger.log: "Closing"
+        - script.stop: blinds_reset_script
         - script.execute:
             id: blinds_cover_set_position
             pos: 0.0
@@ -73,6 +75,7 @@ cover:
     position_action:
       then:
         - logger.log: "Positioning"
+        - script.stop: blinds_reset_script
         - script.execute:
             id: blinds_cover_set_position
             pos: !lambda 'return pos;'
@@ -80,6 +83,7 @@ cover:
     stop_action:
       then:
         - logger.log: "Stopping"
+        - script.stop: blinds_reset_script
         - script.execute:
             id: blinds_cover_set_position
             pos: !lambda 'return float(id(stepper_motor).current_position) / $stepper_endstop;'
@@ -95,7 +99,7 @@ script:
     then:
       - stepper.set_target:
           id: stepper_motor
-          target: !lambda return int($stepper_endstop * pos);
+          target: !lambda return lroundf($stepper_endstop * pos);
       - while:
           condition:
             lambda: 'return id(stepper_motor).current_position != id(stepper_motor).target_position;'
@@ -113,15 +117,11 @@ script:
           id: blinds_cover
           # The reset button deliberately overshoots past 1.0, so clamp before
           # publishing rather than relying on the cover to do it.
-          state: !lambda 'return clamp(pos, 0.0f, 1.0f);'
+          position: !lambda 'return clamp(pos, 0.0f, 1.0f);'
           current_operation: IDLE
-
-button:
-  - platform: template
-    name: Reset position
-    id: blinds_reset
-    entity_category: "config"
-    on_press:
+  - id: blinds_reset_script
+    mode: restart
+    then:
       # Deliberately drive past the endstop to re-home against the physical
       # stop, then return to fully closed.
       - script.execute:
@@ -132,3 +132,12 @@ button:
           id: blinds_cover_set_position
           pos: 0.0
       - script.wait: blinds_cover_set_position
+
+button:
+  - platform: template
+    name: Reset position
+    id: blinds_reset
+    entity_category: "config"
+    on_press:
+      - script.execute: blinds_reset_script
+      - script.wait: blinds_reset_script
